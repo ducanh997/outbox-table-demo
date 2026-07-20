@@ -66,8 +66,8 @@ public class DebeziumEngineConfig implements SmartLifecycle {
     @Override
     public void start() {
         log.info("Starting Debezium engine");
-        executor.execute(engine);
         running = true;
+        executor.execute(engine);
     }
 
     @Override
@@ -116,9 +116,12 @@ public class DebeziumEngineConfig implements SmartLifecycle {
             log.warn("engine.close() did not return within {}s, forcing shutdown",
                     STOP_TIMEOUT_SECONDS);
             closeExecutor.shutdownNow();
+        } catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for engine.close()", e);
+            closeExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.warn("Error waiting for engine.close()", e);
-            Thread.currentThread().interrupt();
         }
     }
 
