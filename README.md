@@ -156,10 +156,10 @@ The app listens on `:8081` and exposes:
 ./gradlew loadTest
 
 # Custom: 20 threads, 5000 rows each, into outbox_innodb, use stored procedure
-./gradlew loadTest -Pthreads=20 -PperThread=5000 -Ptable=outbox_innodb -PuseSp=true
+./gradlew loadTest -Dthreads=20 -DperThread=5000 -Dtable=outbox_innodb -DuseSp=true
 ```
 
-Properties are passed as named args (`-Pthreads`, `-PperThread`, `-Ptable`, `-PuseSp`) and may be omitted in any order; each falls back to a default.
+Properties are passed as JVM system properties (`-Dthreads`, `-DperThread`, `-Dtable`, `-DuseSp`) and may be omitted in any order; each falls back to a default.
 
 While the load test runs, watch the Spring Boot log and Prometheus metrics to observe latency.
 
