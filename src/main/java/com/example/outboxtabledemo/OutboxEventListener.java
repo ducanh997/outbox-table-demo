@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -26,15 +25,12 @@ public class OutboxEventListener implements Consumer<ChangeEvent<String, String>
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final MeterRegistry registry;
-    private final Clock clock;
     private final String connectorName;
     private final ConcurrentHashMap<String, Timer> timers = new ConcurrentHashMap<>();
 
     public OutboxEventListener(MeterRegistry registry,
-                                Clock clock,
                                 @Value("${outbox.consumer.name}") String connectorName) {
         this.registry = registry;
-        this.clock = clock;
         this.connectorName = connectorName;
     }
 
@@ -97,7 +93,7 @@ public class OutboxEventListener implements Consumer<ChangeEvent<String, String>
                 return;
             }
 
-            long delayMs = Duration.between(createdAt, Instant.now(clock)).toMillis();
+            long delayMs = Duration.between(createdAt, Instant.now()).toMillis();
             if (delayMs < 0) {
                 counter("outbox.event.skipped", table, "future_created_at");
                 log.warn("created_at is in the future: key={}, delayMs={}", key, delayMs);
