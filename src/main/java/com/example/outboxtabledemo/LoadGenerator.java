@@ -13,9 +13,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.Options;
 
 public class LoadGenerator {
 
@@ -33,17 +30,10 @@ public class LoadGenerator {
             System.exit(1);
         }
 
-        Options opts = new Options();
-        opts.addOption(null, "threads",   true, "Number of threads (default: 10)");
-        opts.addOption(null, "perThread", true, "Inserts per thread (default: 1000)");
-        opts.addOption(null, "table",     true, "Target table (default: outbox_blackhole)");
-        opts.addOption(null, "useSp",     true, "Use stored procedure (default: false)");
-        CommandLine cmd = new DefaultParser().parse(opts, args);
-
-        int threads = Integer.parseInt(cmd.getOptionValue("threads",   "10"));
-        int perThread = Integer.parseInt(cmd.getOptionValue("perThread", "1000"));
-        String table = cmd.getOptionValue("table", "outbox_blackhole");
-        boolean useSp = Boolean.parseBoolean(cmd.getOptionValue("useSp", "false"));
+        int threads = Integer.parseInt(System.getProperty("threads", "10"));
+        int perThread = Integer.parseInt(System.getProperty("perThread", "1000"));
+        String table = System.getProperty("table", "outbox_blackhole");
+        boolean useSp = Boolean.parseBoolean(System.getProperty("useSp", "false"));
 
         if (!table.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
             System.err.println("Invalid table name: " + table);

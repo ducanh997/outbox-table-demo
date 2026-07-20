@@ -31,7 +31,6 @@ dependencies {
     implementation "io.debezium:debezium-storage-file:${debeziumVersion}"
     runtimeOnly 'com.mysql:mysql-connector-j'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'commons-cli:commons-cli:1.9.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -45,10 +44,4 @@ tasks.register('loadTest', JavaExec) {
     description = 'Run load test. Props: -Pthreads=N -PperThread=N -Ptable=name -PuseSp=true'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.example.outboxtabledemo.LoadGenerator'
-    def argsList = []
-    if (project.hasProperty('threads')) argsList << "--threads=${project.property('threads')}"
-    if (project.hasProperty('perThread')) argsList << "--perThread=${project.property('perThread')}"
-    if (project.hasProperty('table')) argsList << "--table=${project.property('table')}"
-    if (project.hasProperty('useSp')) argsList << "--useSp=${project.property('useSp')}"
-    args argsList
 }
