@@ -1,0 +1,51 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+description = 'outbox-table-demo'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    debeziumVersion = '3.0.0.Final'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation "io.debezium:debezium-embedded:${debeziumVersion}"
+    implementation "io.debezium:debezium-connector-mysql:${debeziumVersion}"
+    implementation "io.debezium:debezium-storage-file:${debeziumVersion}"
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('loadTest', JavaExec) {
+    group = 'verification'
+    description = 'Run load test. Args: [threads] [perThread] [table] [useSp]'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.outboxtabledemo.LoadGenerator'
+    if (project.hasProperty('threads')) args project.property('threads')
+    if (project.hasProperty('perThread')) args project.property('perThread')
+    if (project.hasProperty('table')) args project.property('table')
+    if (project.hasProperty('useSp')) args project.property('useSp')
+}
