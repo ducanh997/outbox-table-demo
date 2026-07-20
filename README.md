@@ -213,3 +213,11 @@ src/main/resources/
 - Micrometer + Prometheus registry
 - Jackson (parsing Debezium JSON envelopes)
 - Java 17
+
+## AI Collaborators
+
+This project was built with assistance from:
+
+- [DeepSeek V4 Flash](https://www.deepseek.com)
+- [Kimi K2.7 Code](https://kimi.ai)
+- [GLM 5.2](https://zhipuai.cn)

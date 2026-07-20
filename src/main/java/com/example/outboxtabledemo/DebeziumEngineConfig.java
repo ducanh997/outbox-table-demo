@@ -12,6 +12,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -49,19 +50,27 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                 .using(props.toProperties())
                 .using(completionCallback())
                 .using(connectorCallback())
-                .notifying((records, committer) -> {
-                    for (var record : records) {
-                        try {
-                            consumer.accept(record);
-                            committer.markProcessed(record);
-                        } catch (Exception e) {
-                            log.warn("Failed to process record key={}, stopping batch for retry",
-                                    record.key(), e);
-                            committer.markBatchFinished();
-                            return;
+                .notifying(new DebeziumEngine.ChangeConsumer<>() {
+                    private int retryCount = 0;
+
+                    @Override
+                    public void handleBatch(List<ChangeEvent<String, String>> records,
+                                           DebeziumEngine.RecordCommitter<ChangeEvent<String, String>> committer) throws InterruptedException {
+                        for (var record : records) {
+                            try {
+                                consumer.accept(record);
+                                committer.markProcessed(record);
+                                retryCount = 0;
+                            } catch (Exception e) {
+                                long delay = Math.min(1000L * (1L << retryCount++), 30_000L);
+                                log.warn("Failed to process record key={}, retry in {}ms", record.key(), delay, e);
+                                Thread.sleep(delay);
+                                committer.markBatchFinished();
+                                return;
+                            }
                         }
+                        committer.markBatchFinished();
                     }
-                    committer.markBatchFinished();
                 })
                 .build();
     }
