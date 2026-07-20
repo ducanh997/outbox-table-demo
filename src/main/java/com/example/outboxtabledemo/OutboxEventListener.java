@@ -104,6 +104,7 @@ public class OutboxEventListener implements Consumer<ChangeEvent<String, String>
                 return;
             }
 
+            log.info("event received: table={}, key={}, delay={}ms", table, key, delayMs);
             timerFor(table).record(Duration.ofMillis(delayMs));
             registry.counter("outbox.event.received",
                     Tags.of("connector", connectorName, "table", table)).increment();
