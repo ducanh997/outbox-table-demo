@@ -157,6 +157,8 @@ The app listens on `:8081` and exposes:
 ./gradlew loadTest -Pthreads=20 -PperThread=5000 -Ptable=outbox_innodb -PuseSp=true
 ```
 
+Properties are passed as named args (`-Pthreads`, `-PperThread`, `-Ptable`, `-PuseSp`) and may be omitted in any order; each falls back to a default.
+
 While the load test runs, watch the Spring Boot log and Prometheus metrics to observe latency.
 
 ## Metrics

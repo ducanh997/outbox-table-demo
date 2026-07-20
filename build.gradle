@@ -41,11 +41,13 @@ tasks.named('test') {
 
 tasks.register('loadTest', JavaExec) {
     group = 'verification'
-    description = 'Run load test. Args: [threads] [perThread] [table] [useSp]'
+    description = 'Run load test. Props: -Pthreads=N -PperThread=N -Ptable=name -PuseSp=true'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.example.outboxtabledemo.LoadGenerator'
-    if (project.hasProperty('threads')) args project.property('threads')
-    if (project.hasProperty('perThread')) args project.property('perThread')
-    if (project.hasProperty('table')) args project.property('table')
-    if (project.hasProperty('useSp')) args project.property('useSp')
+    def argsList = []
+    if (project.hasProperty('threads')) argsList << "--threads=${project.property('threads')}"
+    if (project.hasProperty('perThread')) argsList << "--perThread=${project.property('perThread')}"
+    if (project.hasProperty('table')) argsList << "--table=${project.property('table')}"
+    if (project.hasProperty('useSp')) argsList << "--useSp=${project.property('useSp')}"
+    args argsList
 }

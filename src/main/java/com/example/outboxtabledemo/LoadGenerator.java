@@ -30,17 +30,17 @@ public class LoadGenerator {
             System.exit(1);
         }
 
-        int threads = args.length > 0 ? Integer.parseInt(args[0]) : 10;
-        int perThread = args.length > 1 ? Integer.parseInt(args[1]) : 1000;
-        String table = args.length > 2 ? args[2] : "outbox_blackhole";
-        boolean useSp = args.length > 3 ? Boolean.parseBoolean(args[3]) : false;
+        int threads = intArg(args, "threads", 10);
+        int perThread = intArg(args, "perThread", 1000);
+        String table = stringArg(args, "table", "outbox_blackhole");
+        boolean useSp = boolArg(args, "useSp", false);
 
         if (!table.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
             System.err.println("Invalid table name: " + table);
             System.exit(1);
         }
 
-        String url = "jdbc:mysql://" + host + ":" + port + "/obt?rewriteBatchedStatements=true";
+        String url = "jdbc:mysql://" + host + ":" + port + "/obt";
         int total = threads * perThread;
         String mode = useSp ? "stored-procedure" : "insert";
         System.out.println(">>> Load test: " + threads + " threads x " + perThread + " = " + total
@@ -114,5 +114,34 @@ public class LoadGenerator {
             props.load(in);
         }
         return props;
+    }
+
+    private static String stringArg(String[] args, String key, String def) {
+        String prefix = "--" + key + "=";
+        for (String a : args) {
+            if (a.startsWith(prefix)) {
+                return a.substring(prefix.length());
+            }
+        }
+        return def;
+    }
+
+    private static int intArg(String[] args, String key, int def) {
+        String v = stringArg(args, key, null);
+        if (v == null) {
+            return def;
+        }
+        try {
+            return Integer.parseInt(v);
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid --" + key + " value: " + v);
+            System.exit(1);
+            return def;
+        }
+    }
+
+    private static boolean boolArg(String[] args, String key, boolean def) {
+        String v = stringArg(args, key, null);
+        return v == null ? def : Boolean.parseBoolean(v);
     }
 }
