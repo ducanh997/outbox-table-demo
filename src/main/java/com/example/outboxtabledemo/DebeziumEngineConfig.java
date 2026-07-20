@@ -13,6 +13,9 @@ import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -35,6 +38,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
     private final DebeziumEngine<ChangeEvent<String, String>> engine;
     private final ExecutorService executor;
     private final ExecutorService closeExecutor;
+    private final ConcurrentHashMap<String, ExecutorService> tableWorkers = new ConcurrentHashMap<>();
     private volatile boolean running = false;
     private final AtomicBoolean stopping = new AtomicBoolean(false);
 
@@ -56,20 +60,25 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                     @Override
                     public void handleBatch(List<ChangeEvent<String, String>> records,
                                            DebeziumEngine.RecordCommitter<ChangeEvent<String, String>> committer) throws InterruptedException {
-                        for (var record : records) {
-                            try {
-                                consumer.accept(record);
+                        List<CompletableFuture<Void>> futures = records.stream()
+                                .map(record -> CompletableFuture.runAsync(
+                                        () -> consumer.accept(record),
+                                        tableWorkers.computeIfAbsent(record.destination(),
+                                                k -> Executors.newSingleThreadExecutor(daemonThreadFactory("debezium-worker-" + k)))))
+                                .toList();
+                        try {
+                            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                            for (var record : records) {
                                 committer.markProcessed(record);
-                                retryCount = 0;
-                            } catch (Exception e) {
-                                long delay = Math.min(1000L * (1L << retryCount++), 30_000L);
-                                log.warn("Failed to process record key={}, retry in {}ms", record.key(), delay, e);
-                                Thread.sleep(delay);
-                                committer.markBatchFinished();
-                                return;
                             }
+                            retryCount = 0;
+                        } catch (CompletionException e) {
+                            long delay = Math.min(1000L * (1L << retryCount++), 30_000L);
+                            log.warn("Failed to process batch, retry in {}ms", delay, e.getCause());
+                            Thread.sleep(delay);
+                        } finally {
+                            committer.markBatchFinished();
                         }
-                        committer.markBatchFinished();
                     }
                 })
                 .build();
@@ -121,6 +130,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
             Thread.currentThread().interrupt();
         } finally {
             closeExecutor.shutdownNow();
+            tableWorkers.values().forEach(ExecutorService::shutdownNow);
         }
     }
 
