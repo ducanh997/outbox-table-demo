@@ -34,7 +34,12 @@ The app embeds Debezium directly (no Kafka Connect cluster). Debezium reads MySQ
 ## Prerequisites
 
 - JDK 17+
-- MySQL 8.x with binlog enabled (`binlog_format=ROW`, `binlog_row_image=FULL`)
+- MySQL 8.x with binlog enabled and configured for Debezium:
+  - `log_bin = ON`
+  - `binlog_format = ROW` (capture each row change as before/after)
+  - `binlog_row_image = FULL` (Debezium requires the full row image)
+  - `binlog_row_metadata = FULL` (full column metadata for accurate schema history)
+  - `server_id` unique per MySQL instance
 - MySQL `default-time-zone = "+00:00"` set in `mysqld.cnf` (UTC, industry standard for multi-region safety)
 - Gradle 8.x (wrapper included)
 - SSH access to the MySQL host (the project's `~/.ssh/config` uses `Host ducanh` with `LocalForward 3306 127.0.0.1:3306`)
