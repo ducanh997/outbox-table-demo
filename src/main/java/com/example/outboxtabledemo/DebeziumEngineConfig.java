@@ -29,7 +29,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(DebeziumEngineConfig.class);
 
     private static final int PHASE = Integer.MAX_VALUE - 100;
-    private static final long STOP_TIMEOUT_SECONDS = 30;
+    private static final long STOP_TIMEOUT_SECONDS = 15;
 
     private final DebeziumEngine<ChangeEvent<String, String>> engine;
     private final ExecutorService executor;
