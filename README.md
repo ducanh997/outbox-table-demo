@@ -41,43 +41,54 @@ The app embeds Debezium directly (no Kafka Connect cluster). Debezium reads MySQ
 
 ## Database Setup
 
-Create database `obt` and the outbox tables. Example schema:
+Create database `obt` and two outbox tables to compare CDC behaviour with and without row storage:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS obt;
 USE obt;
 
+-- Standard InnoDB outbox. Rows are stored until cleaned up.
+-- The stored procedure below inserts and deletes in the same transaction
+-- so the binlog captures the INSERT (op=c) without keeping the row.
 CREATE TABLE outbox_innodb (
-    id            CHAR(36)     NOT NULL PRIMARY KEY,
+    id            CHAR(36)      NOT NULL PRIMARY KEY,
     aggregate_type VARCHAR(255) NOT NULL,
     aggregate_id  VARCHAR(255) NOT NULL,
     event_type    VARCHAR(255) NOT NULL,
-    payload       JSON         NOT NULL,
-    created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    payload       JSON          NOT NULL,
+    created_at    TIMESTAMP(3)  NULL
 ) ENGINE=InnoDB;
 
+-- BLACKHOLE engine: rows are never stored, but binlog still receives
+-- the INSERT events. Ideal for benchmarking CDC throughput without
+-- storage overhead. No cleanup needed (there is nothing to delete).
 CREATE TABLE outbox_blackhole (
-    -- same columns
-    id            CHAR(36)     NOT NULL PRIMARY KEY,
+    id            CHAR(36)      NOT NULL PRIMARY KEY,
     aggregate_type VARCHAR(255) NOT NULL,
     aggregate_id  VARCHAR(255) NOT NULL,
     event_type    VARCHAR(255) NOT NULL,
-    payload       JSON         NOT NULL,
-    created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-) ENGINE=InnoDB;
+    payload       JSON          NOT NULL,
+    created_at    TIMESTAMP(3)  NULL
+) ENGINE=BLACKHOLE;
+```
 
--- Optional stored procedure for the innodb table
+The stored procedure for `outbox_innodb` inserts a row and immediately deletes it within the same transaction. MySQL writes both operations to the binlog at commit, so Debezium still sees the INSERT (`op=c`) while the table stays empty. This mimics BLACKHOLE semantics on InnoDB. The trade-off: if Debezium falls behind the binlog retention window and the binlog rotates before the event is read, the event is lost permanently. Use a real cleanup job (e.g. `DELETE WHERE created_at < NOW() - INTERVAL 24 HOUR`) if you need durability guarantees.
+
+```sql
 DELIMITER //
 CREATE PROCEDURE emit_outbox_innodb(
     IN p_aggregate_type VARCHAR(255),
     IN p_aggregate_id   VARCHAR(255),
     IN p_event_type     VARCHAR(255),
     IN p_payload        JSON,
-    IN p_created_at     DATETIME(3)
+    IN p_created_at     TIMESTAMP(3)
 )
 BEGIN
+    DECLARE v_id CHAR(36);
+    SET v_id = UUID();
     INSERT INTO outbox_innodb (id, aggregate_type, aggregate_id, event_type, payload, created_at)
-    VALUES (UUID(), p_aggregate_type, p_aggregate_id, p_event_type, p_payload, p_created_at);
+    VALUES (v_id, p_aggregate_type, p_aggregate_id, p_event_type, p_payload, p_created_at);
+    DELETE FROM outbox_innodb WHERE id = v_id;
 END //
 DELIMITER ;
 ```

@@ -1,8 +1,6 @@
 package com.example.outboxtabledemo;
 
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -107,11 +105,12 @@ public class LoadGenerator {
 
     private static Properties loadApplicationProperties() throws Exception {
         Properties props = new Properties();
-        Path file = Path.of("src/main/resources/application.properties");
-        if (!Files.exists(file)) {
-            file = Path.of("application.properties");
-        }
-        try (InputStream in = Files.newInputStream(file)) {
+        try (InputStream in = LoadGenerator.class.getClassLoader()
+                .getResourceAsStream("application.properties")) {
+            if (in == null) {
+                System.err.println("application.properties not found on classpath");
+                System.exit(1);
+            }
             props.load(in);
         }
         return props;
