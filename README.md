@@ -1,5 +1,7 @@
 # Outbox Table Demo
 
+> Built with AI collaboration: [DeepSeek V4 Flash](https://www.deepseek.com) · [Kimi K2.7 Code](https://kimi.ai) · [GLM 5.2](https://zhipuai.cn)
+
 A Spring Boot demo of the **Transactional Outbox Pattern** using **Debezium Embedded** to capture row changes from MySQL and **Micrometer** to measure end-to-end latency from database commit to consumer receive.
 
 ## Architecture
@@ -213,11 +215,3 @@ src/main/resources/
 - Micrometer + Prometheus registry
 - Jackson (parsing Debezium JSON envelopes)
 - Java 17
-
-## AI Collaborators
-
-This project was built with assistance from:
-
-- [DeepSeek V4 Flash](https://www.deepseek.com)
-- [Kimi K2.7 Code](https://kimi.ai)
-- [GLM 5.2](https://zhipuai.cn)
