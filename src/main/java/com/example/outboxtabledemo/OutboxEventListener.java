@@ -1,5 +1,6 @@
 package com.example.outboxtabledemo;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.debezium.engine.ChangeEvent;
@@ -52,62 +53,69 @@ public class OutboxEventListener implements Consumer<ChangeEvent<String, String>
     public void accept(ChangeEvent<String, String> event) {
         String key = event.key();
         String table = "unknown";
-        try {
-            String value = event.value();
-            if (value == null) {
-                counter("outbox.event.skipped", table, "null_value");
-                return;
-            }
 
-            JsonNode root = MAPPER.readTree(value);
-            JsonNode payload = root.path("payload");
-            JsonNode source = payload.path("source");
-            if (source.isMissingNode()) {
-                counter("outbox.event.skipped", table, "missing_source");
-                return;
-            }
-
-            table = source.path("table").asText("unknown");
-            String op = payload.path("op").asText("");
-            JsonNode after = payload.path("after");
-            if (after.isMissingNode() || after.isNull()) {
-                counter("outbox.event.skipped", table, "missing_after");
-                return;
-            }
-
-            if (!"c".equals(op)) {
-                counter("outbox.event.skipped", table, "non_create_op");
-                return;
-            }
-
-            JsonNode createdAtNode = after.path("created_at");
-            if (createdAtNode.isMissingNode() || createdAtNode.isNull()) {
-                counter("outbox.event.skipped", table, "missing_created_at");
-                return;
-            }
-
-            Instant createdAt = parseCreatedAt(createdAtNode);
-            if (createdAt == null) {
-                counter("outbox.event.failed", table, "invalid_created_at");
-                log.warn("Invalid created_at value: key={}, value={}", key, createdAtNode);
-                return;
-            }
-
-            long delayMs = Duration.between(createdAt, Instant.now()).toMillis();
-            if (delayMs < 0) {
-                counter("outbox.event.skipped", table, "future_created_at");
-                log.warn("created_at is in the future: key={}, delayMs={}", key, delayMs);
-                return;
-            }
-
-            log.info("event received: table={}, key={}, delay={}ms", table, key, delayMs);
-            timerFor(table).record(Duration.ofMillis(delayMs));
-            registry.counter("outbox.event.received",
-                    Tags.of("connector", connectorName, "table", table)).increment();
-        } catch (Exception e) {
-            counter("outbox.event.failed", table, "exception");
-            log.warn("Failed to process event: key={}", key, e);
+        String value = event.value();
+        if (value == null) {
+            counter("outbox.event.skipped", table, "null_value");
+            return;
         }
+
+        JsonNode root;
+        try {
+            root = MAPPER.readTree(value);
+        } catch (JsonProcessingException e) {
+            // permanent failure — bad JSON will never parse on retry
+            counter("outbox.event.failed", table, "invalid_json");
+            log.warn("Failed to parse event JSON: key={}", key, e);
+            return;
+        }
+
+        JsonNode payload = root.path("payload");
+        JsonNode source = payload.path("source");
+        if (source.isMissingNode()) {
+            counter("outbox.event.skipped", table, "missing_source");
+            return;
+        }
+
+        table = source.path("table").asText("unknown");
+        String op = payload.path("op").asText("");
+
+        if (!"c".equals(op)) {
+            counter("outbox.event.skipped", table, "non_create_op");
+            return;
+        }
+
+        JsonNode after = payload.path("after");
+        if (after.isMissingNode() || after.isNull()) {
+            counter("outbox.event.skipped", table, "missing_after");
+            return;
+        }
+
+        JsonNode createdAtNode = after.path("created_at");
+        if (createdAtNode.isMissingNode() || createdAtNode.isNull()) {
+            counter("outbox.event.skipped", table, "missing_created_at");
+            return;
+        }
+
+        Instant createdAt = parseCreatedAt(createdAtNode);
+        if (createdAt == null) {
+            counter("outbox.event.failed", table, "invalid_created_at");
+            log.warn("Invalid created_at value: key={}, value={}", key, createdAtNode);
+            return;
+        }
+
+        long delayMs = Duration.between(createdAt, Instant.now()).toMillis();
+        if (delayMs < 0) {
+            log.warn("created_at is in the future (clock skew?): key={}, delayMs={}", key, delayMs);
+        } else {
+            timerFor(table).record(Duration.ofMillis(delayMs));
+        }
+
+        log.info("event received: table={}, key={}, delay={}ms", table, key, delayMs);
+        registry.counter("outbox.event.received",
+                Tags.of("connector", connectorName, "table", table)).increment();
+        // transient exceptions (e.g. future Kafka publish failures) will propagate
+        // to the batch handler, which will stop committing the offset → at-least-once retry
     }
 
     private static Instant parseCreatedAt(JsonNode node) {

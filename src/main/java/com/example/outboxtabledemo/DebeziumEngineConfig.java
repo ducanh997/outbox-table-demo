@@ -49,7 +49,20 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                 .using(props.toProperties())
                 .using(completionCallback())
                 .using(connectorCallback())
-                .notifying(consumer)
+                .notifying((records, committer) -> {
+                    for (var record : records) {
+                        try {
+                            consumer.accept(record);
+                            committer.markProcessed(record);
+                        } catch (Exception e) {
+                            log.warn("Failed to process record key={}, stopping batch for retry",
+                                    record.key(), e);
+                            committer.markBatchFinished();
+                            return;
+                        }
+                    }
+                    committer.markBatchFinished();
+                })
                 .build();
     }
 
