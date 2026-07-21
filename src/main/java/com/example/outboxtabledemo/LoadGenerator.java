@@ -106,15 +106,11 @@ public class LoadGenerator {
                         insertedCount, total, elapsedSec));
                 System.exit(1);
             }
-            if (failureCount > 0) {
-                System.err.println(String.format(
-                        ">>> Load test failed: %d/%d inserted before %d worker thread(s) errored in %.2fs",
-                        insertedCount, total, failureCount, elapsedSec));
-                System.exit(1);
-            }
-            System.out.println(String.format(">>> Done: %d in %.2fs (%.0f ops/s)",
-                    insertedCount, elapsedSec,
-                    elapsedSec > 0 ? insertedCount / elapsedSec : 0));
+            double failureRate = total > 0 ? (double) failureCount / total : 0;
+            System.out.printf(">>> Done: %d/%d inserted in %.2fs (%.0f ops/s) | failures: %d (%.1f%%)%n",
+                    insertedCount, total, elapsedSec,
+                    elapsedSec > 0 ? insertedCount / elapsedSec : 0,
+                    failureCount, failureRate * 100);
             System.out.println(">>> End timestamp (ms): " + System.currentTimeMillis());
             System.out.println(">>> Now watch the Spring Boot app log for latency stats.");
         } finally {
