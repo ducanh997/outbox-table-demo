@@ -38,6 +38,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
 
     private static final int PHASE = Integer.MAX_VALUE - 100;
     private static final long STOP_TIMEOUT_SECONDS = 15;
+    private static final int MAX_RETRY_EXPONENT = 5;
 
     private final DebeziumEngine<ChangeEvent<String, String>> engine;
     private final ExecutorService executor;
@@ -79,8 +80,8 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                             }
                             retryCount = 0;
                         } catch (CompletionException e) {
-                            long delay = Math.min(1000L * (1L << retryCount++), 30_000L);
-                            log.warn("Failed to process batch, retry in {}ms", delay, e.getCause());
+                            long delay = 1000L * (1L << Math.min(retryCount++, MAX_RETRY_EXPONENT));
+                            log.warn("Failed to process batch; leaving offsets uncommitted for replay after {}ms", delay, e.getCause());
                             Thread.sleep(delay);
                         } finally {
                             committer.markBatchFinished();

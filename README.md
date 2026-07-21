@@ -26,7 +26,7 @@ The app embeds Debezium directly (no Kafka Connect cluster). Debezium reads MySQ
 
 | File | Role |
 |------|------|
-| `OutboxTableDemoApplication` | Spring Boot entrypoint, provides `Clock` bean. |
+| `OutboxTableDemoApplication` | Spring Boot entrypoint. |
 | `DebeziumProperties` | Binds `debezium.props[*]` from `application.properties`. |
 | `DebeziumEngineConfig` | Builds and runs `DebeziumEngine` as a `SmartLifecycle` bean (auto-start/stop with Spring context, CompletionCallback/ConnectorCallback for visibility). |
 | `OutboxEventListener` | `Consumer<ChangeEvent>` that parses Debezium JSON, computes latency, records Timer + counters. |
@@ -126,6 +126,8 @@ debezium.props[snapshot.mode]=schema_only
 
 Debezium runtime state (offsets, schema history) is written to `.debezium/` (gitignored). If the embedded Debezium engine exits with an unexpected error, the application exits with code `1`; run it under a supervisor if you want automatic restart.
 
+Set `debezium.enabled=false` to boot the Spring context without starting the embedded Debezium engine. This is mainly useful for tests or local checks that should not require MySQL/binlog access.
+
 ## Run the Application
 
 Start the SSH tunnel (if MySQL is remote):
@@ -145,7 +147,6 @@ The app listens on `:8081` and exposes:
 | Endpoint | Description |
 |----------|-------------|
 | `http://localhost:8081/actuator/prometheus` | Prometheus scrape target |
-| `http://localhost:8081/actuator/metrics` | Micrometer metrics list |
 
 ## Run a Load Test
 
@@ -190,7 +191,7 @@ sum by (table) (rate(outbox_event_received_total[5m]))
 
 ```
 src/main/java/com/example/outboxtabledemo/
-    OutboxTableDemoApplication.java   # @SpringBootApplication + Clock bean
+    OutboxTableDemoApplication.java   # @SpringBootApplication entrypoint
     DebeziumProperties.java           # @ConfigurationProperties(prefix="debezium")
     DebeziumEngineConfig.java         # SmartLifecycle Debezium engine
     OutboxEventListener.java          # Consumer<ChangeEvent> + metrics

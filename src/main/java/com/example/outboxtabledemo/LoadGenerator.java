@@ -12,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LoadGenerator {
@@ -35,6 +36,11 @@ public class LoadGenerator {
         String table = System.getProperty("table", "outbox_blackhole");
         boolean useSp = Boolean.parseBoolean(System.getProperty("useSp", "false"));
 
+        if (threads <= 0 || perThread <= 0) {
+            System.err.println("threads and perThread must be positive");
+            System.exit(1);
+        }
+
         if (!table.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
             System.err.println("Invalid table name: " + table);
             System.exit(1);
@@ -50,6 +56,7 @@ public class LoadGenerator {
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         CountDownLatch latch = new CountDownLatch(threads);
         AtomicLong inserted = new AtomicLong();
+        AtomicInteger failures = new AtomicInteger();
         long start = System.nanoTime();
 
         String sql;
@@ -80,6 +87,7 @@ public class LoadGenerator {
                             inserted.incrementAndGet();
                         }
                     } catch (Exception e) {
+                        failures.incrementAndGet();
                         System.err.println("Thread " + tid + " error:");
                         e.printStackTrace();
                     } finally {
@@ -93,10 +101,15 @@ public class LoadGenerator {
             }
             double elapsedSec = (System.nanoTime() - start) / 1_000_000_000.0;
             long insertedCount = inserted.get();
+            int failureCount = failures.get();
             System.out.println(String.format(">>> Done: %d in %.2fs (%.0f ops/s)",
                     insertedCount, elapsedSec,
                     elapsedSec > 0 ? insertedCount / elapsedSec : 0));
             System.out.println(">>> End timestamp (ms): " + System.currentTimeMillis());
+            if (failureCount > 0) {
+                System.err.println(">>> Load test failed: " + failureCount + " worker thread(s) errored");
+                System.exit(1);
+            }
             System.out.println(">>> Now watch the Spring Boot app log for latency stats.");
         } finally {
             exec.shutdownNow();
