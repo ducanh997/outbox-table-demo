@@ -30,7 +30,6 @@ The app embeds Debezium directly (no Kafka Connect cluster). Debezium reads MySQ
 | `DebeziumProperties` | Binds `debezium.props[*]` from `application.properties`. |
 | `DebeziumEngineConfig` | Builds and runs `DebeziumEngine` as a `SmartLifecycle` bean (auto-start/stop with Spring context, CompletionCallback/ConnectorCallback for visibility). |
 | `OutboxEventListener` | `Consumer<ChangeEvent>` that parses Debezium JSON, computes latency, records Timer + counters. |
-| `DebeziumHealthIndicator` | Reports `DOWN` at `/actuator/health` when the engine is not running (e.g. died unexpectedly) so orchestrators (K8s) can restart the pod. |
 | `LoadGenerator` | Standalone `main()` for load testing. Reads DB credentials from `application.properties`. |
 
 ## Prerequisites
@@ -125,7 +124,7 @@ debezium.props[table.include.list]=obt.outbox_innodb,obt.outbox_blackhole
 debezium.props[snapshot.mode]=schema_only
 ```
 
-Debezium runtime state (offsets, schema history) is written to `.debezium/` (gitignored).
+Debezium runtime state (offsets, schema history) is written to `.debezium/` (gitignored). If the embedded Debezium engine exits with an unexpected error, the application exits with code `1`; run it under a supervisor if you want automatic restart.
 
 ## Run the Application
 
@@ -145,7 +144,6 @@ The app listens on `:8081` and exposes:
 
 | Endpoint | Description |
 |----------|-------------|
-| `http://localhost:8081/actuator/health` | Health check |
 | `http://localhost:8081/actuator/prometheus` | Prometheus scrape target |
 | `http://localhost:8081/actuator/metrics` | Micrometer metrics list |
 

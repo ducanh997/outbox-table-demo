@@ -7,7 +7,11 @@ import io.debezium.engine.DebeziumEngine.ConnectorCallback;
 import io.debezium.engine.format.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Configuration;
 
@@ -41,9 +45,15 @@ public class DebeziumEngineConfig implements SmartLifecycle {
     private final ConcurrentHashMap<String, ExecutorService> tableWorkers = new ConcurrentHashMap<>();
     private volatile boolean running = false;
     private final AtomicBoolean stopping = new AtomicBoolean(false);
+    private final ConfigurableApplicationContext applicationContext;
+    private final boolean enabled;
 
     public DebeziumEngineConfig(DebeziumProperties props,
-                                Consumer<ChangeEvent<String, String>> consumer) {
+                                Consumer<ChangeEvent<String, String>> consumer,
+                                ConfigurableApplicationContext applicationContext,
+                                @Value("${debezium.enabled:true}") boolean enabled) {
+        this.applicationContext = applicationContext;
+        this.enabled = enabled;
         this.executor = Executors.newSingleThreadExecutor(daemonThreadFactory("debezium-engine"));
         this.closeExecutor = Executors.newSingleThreadExecutor(daemonThreadFactory("debezium-engine-close"));
         this.engine = DebeziumEngine.create(Json.class)
@@ -82,7 +92,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
 
     @Override
     public boolean isAutoStartup() {
-        return true;
+        return enabled;
     }
 
     @Override
@@ -92,6 +102,10 @@ public class DebeziumEngineConfig implements SmartLifecycle {
 
     @Override
     public void start() {
+        if (!enabled) {
+            log.info("Debezium engine is disabled");
+            return;
+        }
         log.info("Starting Debezium engine");
         running = true;
         executor.execute(engine);
@@ -165,6 +179,14 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                 log.info("Debezium engine completed successfully: {}", message);
             } else {
                 log.error("Debezium engine completed with error: {}", message, error);
+                if (!stopping.get()) {
+                    log.error("Debezium engine failed unexpectedly — shutting down application");
+                    Thread shutdownThread = new Thread(
+                            () -> System.exit(SpringApplication.exit(applicationContext, () -> 1)),
+                            "debezium-shutdown");
+                    shutdownThread.setDaemon(false);
+                    shutdownThread.start();
+                }
             }
         };
     }
