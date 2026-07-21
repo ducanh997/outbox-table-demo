@@ -41,7 +41,11 @@ tasks.named('test') {
 
 tasks.register('loadTest', JavaExec) {
     group = 'verification'
-    description = 'Run load test. Props: -Pthreads=N -PperThread=N -Ptable=name -PuseSp=true'
+    description = 'Run load test. Props: -Dthreads=N -DperThread=N -Dtable=name -DuseSp=true'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.example.outboxtabledemo.LoadGenerator'
+    ['threads', 'perThread', 'table', 'useSp'].each { key ->
+        def val = System.getProperty(key)
+        if (val != null) systemProperty key, val
+    }
 }
