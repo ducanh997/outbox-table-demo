@@ -96,20 +96,26 @@ public class LoadGenerator {
                 });
             }
 
-            if (!latch.await(60, TimeUnit.SECONDS)) {
-                System.err.println(">>> Load test timed out after 60s, forcing shutdown");
-            }
+            boolean completed = latch.await(60, TimeUnit.SECONDS);
             double elapsedSec = (System.nanoTime() - start) / 1_000_000_000.0;
             long insertedCount = inserted.get();
             int failureCount = failures.get();
+            if (!completed) {
+                System.err.println(String.format(
+                        ">>> Load test timed out after 60s: %d/%d inserted in %.2fs",
+                        insertedCount, total, elapsedSec));
+                System.exit(1);
+            }
+            if (failureCount > 0) {
+                System.err.println(String.format(
+                        ">>> Load test failed: %d/%d inserted before %d worker thread(s) errored in %.2fs",
+                        insertedCount, total, failureCount, elapsedSec));
+                System.exit(1);
+            }
             System.out.println(String.format(">>> Done: %d in %.2fs (%.0f ops/s)",
                     insertedCount, elapsedSec,
                     elapsedSec > 0 ? insertedCount / elapsedSec : 0));
             System.out.println(">>> End timestamp (ms): " + System.currentTimeMillis());
-            if (failureCount > 0) {
-                System.err.println(">>> Load test failed: " + failureCount + " worker thread(s) errored");
-                System.exit(1);
-            }
             System.out.println(">>> Now watch the Spring Boot app log for latency stats.");
         } finally {
             exec.shutdownNow();
