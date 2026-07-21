@@ -45,11 +45,7 @@ public class DebeziumEngineConfig implements SmartLifecycle {
     public DebeziumEngineConfig(DebeziumProperties props,
                                 Consumer<ChangeEvent<String, String>> consumer) {
         this.executor = Executors.newSingleThreadExecutor(daemonThreadFactory("debezium-engine"));
-        this.closeExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "debezium-engine-close");
-            t.setDaemon(true);
-            return t;
-        });
+        this.closeExecutor = Executors.newSingleThreadExecutor(daemonThreadFactory("debezium-engine-close"));
         this.engine = DebeziumEngine.create(Json.class)
                 .using(props.toProperties())
                 .using(completionCallback())
