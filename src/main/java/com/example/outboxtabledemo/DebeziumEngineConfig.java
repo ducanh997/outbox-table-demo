@@ -69,10 +69,21 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                                 committer.markProcessed(record);
                             }
                             retryCount = 0;
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.warn("Interrupted while processing batch");
+                            throw e;
                         } catch (Exception e) {
-                            long delay = 1000L * (1L << Math.min(retryCount++, MAX_RETRY_EXPONENT));
-                            log.warn("Failed to process batch; leaving offsets uncommitted for replay after {}ms", delay, e);
-                            Thread.sleep(delay);
+                            long baseDelay = 1000L * (1L << Math.min(retryCount++, MAX_RETRY_EXPONENT));
+                            long jitter = (long) (baseDelay * (0.8 + Math.random() * 0.4));
+                            log.warn("Failed to process batch (retry={}); leaving offsets uncommitted for replay after {}ms",
+                                    retryCount, jitter, e);
+                            try {
+                                Thread.sleep(jitter);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                throw ie;
+                            }
                         } finally {
                             committer.markBatchFinished();
                         }
