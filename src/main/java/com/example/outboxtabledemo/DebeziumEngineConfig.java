@@ -58,34 +58,15 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                 .using(completionCallback())
                 .using(connectorCallback())
                 .notifying(new DebeziumEngine.ChangeConsumer<>() {
-                    private int retryCount = 0;
-
                     @Override
                     public void handleBatch(List<ChangeEvent<String, String>> records,
                                            DebeziumEngine.RecordCommitter<ChangeEvent<String, String>> committer) throws InterruptedException {
                         try {
                             for (var record : records) {
-                                consumer.accept(record);
-                                committer.markProcessed(record);
+                                processRecordWithRetry(record, consumer, committer);
                             }
-                            retryCount = 0;
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            log.warn("Interrupted while processing batch");
-                            throw e;
-                        } catch (Exception e) {
-                            long baseDelay = 1000L * (1L << Math.min(retryCount++, MAX_RETRY_EXPONENT));
-                            long jitter = (long) (baseDelay * (0.8 + Math.random() * 0.4));
-                            log.warn("Failed to process batch (retry={}); committing processed records and stopping engine for restart recovery after {}ms backoff",
-                                    retryCount, jitter, e);
-                            try {
-                                Thread.sleep(jitter);
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                throw ie;
-                            }
-                            throw new RuntimeException(e);
-                        } finally {
+                        }
+                        finally {
                             committer.markBatchFinished();
                         }
                     }
@@ -214,5 +195,35 @@ public class DebeziumEngineConfig implements SmartLifecycle {
             t.setDaemon(true);
             return t;
         };
+    }
+
+    private void processRecordWithRetry(ChangeEvent<String, String> record,
+                                        Consumer<ChangeEvent<String, String>> consumer,
+                                        DebeziumEngine.RecordCommitter<ChangeEvent<String, String>> committer) throws InterruptedException {
+        int attempts = 0;
+        while (true) {
+            try {
+                consumer.accept(record);
+                committer.markProcessed(record);
+                return;
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw e;
+            }
+            catch (Exception e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException("Interrupted during record processing");
+                }
+                long backoff = computeBackoff(attempts++);
+                log.warn("Failed to process record (attempt={}); retrying after {}ms", attempts, backoff, e);
+                Thread.sleep(backoff);
+            }
+        }
+    }
+
+    private long computeBackoff(int attempts) {
+        long baseDelay = 1000L * (1L << Math.min(attempts, MAX_RETRY_EXPONENT));
+        return (long) (baseDelay * (0.8 + Math.random() * 0.4));
     }
 }
