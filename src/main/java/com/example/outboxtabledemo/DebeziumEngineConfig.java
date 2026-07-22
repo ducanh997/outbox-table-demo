@@ -209,7 +209,6 @@ public class DebeziumEngineConfig implements SmartLifecycle {
                 return;
             }
             catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
                 throw e;
             }
             catch (Exception e) {
