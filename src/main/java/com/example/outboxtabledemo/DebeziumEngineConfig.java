@@ -23,6 +23,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -224,6 +225,6 @@ public class DebeziumEngineConfig implements SmartLifecycle {
 
     private long computeBackoff(int attempts) {
         long baseDelay = 1000L * (1L << Math.min(attempts, MAX_RETRY_EXPONENT));
-        return (long) (baseDelay * (0.8 + Math.random() * 0.4));
+        return (long) (baseDelay * ThreadLocalRandom.current().nextDouble(0.8, 1.2));
     }
 }
