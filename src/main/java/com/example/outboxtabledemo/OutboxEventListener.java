@@ -114,9 +114,7 @@ public class OutboxEventListener implements Consumer<ChangeEvent<String, String>
         log.info("event received: table={}, key={}, delay={}ms", table, key, delayMs);
         registry.counter("outbox.event.received",
                 Tags.of("connector", connectorName, "table", table)).increment();
-        // transient exceptions (e.g. future Kafka publish failures) will propagate
-        // to the batch handler, which stops the engine so the app restarts and redelivers
-        // from the last committed offset → at-least-once retry
+        // Send event to Kafka here!
     }
 
     private static Instant parseCreatedAt(JsonNode node) {
